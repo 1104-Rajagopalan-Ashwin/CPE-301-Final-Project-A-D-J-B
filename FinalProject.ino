@@ -300,6 +300,140 @@ void loop() {
 }
 
 }
+// UART functions
+// copied from Lab 8
+void U0Init(int U0baud)
+{
+ unsigned long FCPU = 16000000;
+ unsigned int tbaud;
+ tbaud = (FCPU / 16 / U0baud - 1);
+ // Same as (FCPU / (16 * U0baud)) - 1;
+ *myUCSR0A = 0x20;
+ *myUCSR0B = 0x18;
+ *myUCSR0C = 0x06;
+ *myUBRR0  = tbaud;
+}
+unsigned char kbhit()
+{
+  return *myUCSR0A & RDA;
+}
+unsigned char getChar()
+{
+  return *myUDR0;
+}
+void putChar(unsigned char U0pdata)
+{
+  while((*myUCSR0A & TBE)==0);
+  *myUDR0 = U0pdata;
+}
+
+//port B output function
+void write_pb(unsigned char pin_num, unsigned char state){
+  if(state == 0){
+    *portB &= ~(0x01 << pin_num);
+  }
+  else{
+    *portB |= 0x01 << pin_num;
+  }
+}
+
+void reportTime(){
+  DateTime now = myrtc.now();
+  putChar(0x30 + (now.hour()/10)%10);
+  putChar(0x30 + now.hour()%10);
+  putChar(':');
+  putChar(0x30 + (now.minute()/10)%10);
+  putChar(0x30 + now.minute()%10);
+  putChar(':');
+  putChar(0x30 + (now.second()/10)%10);
+  putChar(0x30 + now.second()%10);
+}
+
+//RTC to serial monitor
+void reportTransition(){
+  const char string1[] = "Transition from state ";
+  const char string2[] = " to state ";
+  const char string3[] = " at time ";
+  for(int i =0; i < strlen(string1); i++ ) {
+    char c = string1[i];
+    putChar(c);
+  }
+  putChar(0x30 + state);
+  for(int i =0; i < strlen(string2); i++ ) {
+    char c = string2[i];
+    putChar(c);
+  }
+  putChar(0x30 + nextState);
+  for(int i =0; i < strlen(string3); i++ ) {
+    char c = string3[i];
+    putChar(c);
+  }
+  reportTime();
+  putChar('\n');
+}
+
+void reportVentUp(){
+  const char string1[] = "Moving vent up at time ";
+  for(int i =0; i < strlen(string1); i++ ) {
+    char c = string1[i];
+    putChar(c);
+  }
+  reportTime();
+  putChar('\n');
+}
+
+void reportVentDown(){
+  const char string1[] = "Moving vent down at time ";
+  for(int i =0; i < strlen(string1); i++ ) {
+    char c = string1[i];
+    putChar(c);
+  }
+  reportTime();
+  putChar('\n');
+}
+
+void reportFanOn(){
+  const char string1[] = "Fan turned on at time ";
+  for(int i =0; i < strlen(string1); i++ ) {
+    char c = string1[i];
+    putChar(c);
+  }
+  reportTime();
+  putChar('\n');
+}
+
+void reportFanOff(){
+  const char string1[] = "Fan turned off at time ";
+  for(int i =0; i < strlen(string1); i++ ) {
+    char c = string1[i];
+    putChar(c);
+  }
+  reportTime();
+  putChar('\n');
+}
+
+// ISR for the start button
+void startStopButton(){
+  // if state == Disabled
+  if(state == 0){
+    // Set state to Idle;
+    nextState = 1;
+  // Otherwise
+  }else{
+    // set state to disabled
+    nextState = 0;
+  }
+}
+
+// ISR for error reset button
+void resetButton(){
+  waterLevel = adc_read(0);
+  // if state == Error and water level is above threshold
+  if(state == 3 && waterLevel > WATER_THRESHOLD){
+    // go to Idle
+    nextState = 1;
+  }
+}
 void displayTempHumidity(){
   lcd.clear();
   lcd.setCursor(0, 0);
