@@ -299,7 +299,6 @@ void loop() {
   my_delay(1);
 }
 
-}
 // UART functions
 // copied from Lab 8
 void U0Init(int U0baud)
