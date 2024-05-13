@@ -108,8 +108,49 @@ char stateNames[4][9] = {"Disabled", "Idle", "Running", "Error"};
 int waterLevel;
 
 void setup() {
-  // put your setup code here, to run once:
+// Initialize pins
+  *portDDRB |= 0b11110000; // set PB4-7 to output (LEDs)
+  *portB &= 0b00001111; // set PB4-7 to low 
 
+  *portDDRA &= 0b11111110; // set PA0 to input
+  *portA &= 0b11111110; // disable pullup on PA0
+
+  *portDDRA |= 0b00000100; // set PA2 to output
+  *portA &= 0b11111011; // set PA2 to low
+
+  *portDDRC &=0b01110111; // set PC3 and PC7 to input
+  *portC &= 0b01110111; // disable pullup
+
+  *portDDRD &= 0b00000100; // set PD2 to input
+  *portD &= 0b11111011; // disable pullup on PD2
+
+  // Initialize serial
+  U0Init(9600);
+
+  // Initialize states
+  state = 0;
+  nextState = 0;
+
+  // attach interrupt for start/stop and reset buttons
+  attachInterrupt(digitalPinToInterrupt(START_STOP_PIN), startStopButton, RISING);
+  attachInterrupt(digitalPinToInterrupt(RESET_PIN), resetButton, RISING);
+  
+  // Initialize clock
+  myrtc.begin();
+  myrtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  
+  // Initialize LCD display
+  lcd.begin(16,2);
+  // lcd.begin(20,4);
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Working");
+
+  // Initialize ADC
+  adc_init();
+
+  // Initialize stepper speed
+  myStepper.setSpeed(5);
 }
 
 void loop() {
