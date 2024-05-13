@@ -233,3 +233,150 @@ void my_delay(unsigned int freq)
   // reset TOV           
   *myTIFR1 |= 0x01;
 }
+void loop() {
+  // put your main code here, to run repeatedly:
+
+  
+  Serial.print("DHT11, \t");
+  int chk = DHT.read11(DHT11_PIN);
+  
+  Serial.println(DHT.temperature, 1);
+  displayTempHumidity();
+//shold be in the loop func
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Working");
+
+  if(state != nextState){
+    reportTransition();
+    if(nextState == 2){
+      reportFanOn();
+    }else if(state == 2){
+      reportFanOff();
+    }
+  }
+  state = nextState;
+  if(state == 0){
+    // Disabled
+    // update LEDS
+    write_pb(7, 1);
+    write_pb(6, 0);
+    write_pb(5, 0);
+    write_pb(4, 0);
+
+    // Stop fan motor
+    *portA &= 0b11111011; // set PA2 to low
+
+    // Update screen
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("Disabled");
+    // do not detect transitions, start button implemented through ISR
+  }else if (state == 1){
+    // Idle
+    // update LEDS
+    write_pb(7, 0);
+    write_pb(6, 1);
+    write_pb(5, 0);
+    write_pb(4, 0);
+
+    // Stop fan motor
+    *portA &= 0b11111011; // set PA2 to low
+
+    // Read and display temperature and humidity
+    //int chk = DHT.read11(DHT11_PIN);
+    displayTempHumidity();
+
+    // Read water level
+    waterLevel = adc_read(0);
+
+    // Read vent button
+    // move vent up
+    while(*pinC & 0b10000000){
+      reportVentUp();
+      myStepper.step(100);
+    }
+    // move vent down
+    while(*pinC & 0b00001000){
+      reportVentDown();
+      myStepper.step(-100);
+    }
+
+    // Test for state transitions
+    // if waterLevel <= threshold, go to error
+    if(waterLevel <= WATER_THRESHOLD){
+      nextState = 3;
+    // if temp > threshold, go to running
+    }else if(DHT.temperature> TEMP_THRESHOLD){
+      nextState = 2;
+    }
+  }else if(state == 2){
+    // Running
+    // update LEDS
+    write_pb(7, 0);
+    write_pb(6, 0);
+    write_pb(5, 1);
+    write_pb(4, 0);
+
+    // Start fan motor
+    *portA |= 0b00000100; // set PA2 to high
+
+    // Read and display temperature and humidity
+    //int chk = dht.read(DHT11_PIN);
+    displayTempHumidity();
+
+    // Read vent button
+    // move vent up
+    while(*pinC & 0b10000000){
+      reportVentUp();
+      myStepper.step(100);
+    }
+    // move vent down
+    while(*pinC & 0b00001000){
+      reportVentDown();
+      myStepper.step(-100);
+    }
+
+    // Read water level
+    waterLevel = adc_read(0);
+
+    // Test for state transitions
+    // if waterLevel < threshold, go to error
+    if(waterLevel < WATER_THRESHOLD){
+      nextState = 3;
+    // if temp <= threshold, go to idle
+    }else if(DHT.temperature <= TEMP_THRESHOLD){
+      nextState = 1;
+    }
+  }else if (state == 3){
+    // Error
+    // update LEDS
+    write_pb(7, 0);
+    write_pb(6, 0);
+    write_pb(5, 0);
+    write_pb(4, 1);
+
+    // Stop fan motor
+    *portA &= 0b11111011; // set PA2 to low
+
+    // update LCD
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("ERROR: Water");
+    lcd.setCursor(0,1);
+    lcd.print("level is too low");
+
+    // Read vent button
+    // move vent up
+    while(*pinC & 0b10000000){
+      reportVentUp();
+      myStepper.step(100);
+    }
+    // move vent down
+    while(*pinC & 0b00001000){
+      reportVentDown();
+      myStepper.step(-100);
+    }
+  }
+  my_delay(1);
+}
